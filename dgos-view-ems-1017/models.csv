@@ -1,0 +1,5 @@
+id,name,glbPath,longitude,latitude,scale,heading
+B01,B01,https://3d-models.eyeots.com/poc/windpower/windpower.glb,120.229203,23.84513,100,131.0
+B02,B02,https://3d-models.eyeots.com/poc/windpower/windpower.glb,120.230672,23.845041,100,104.5
+BB,A02,https://3d-models.eyeots.com/poc/windpower/windpower.glb,120.229988,23.846198,100,108.3
+AA,A01,https://3d-models.eyeots.com/poc/windpower/windpower.glb,120.22855,23.846207,100,121.5

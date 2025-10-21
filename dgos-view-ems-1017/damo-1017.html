@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- DGOS Viewer Web Component 演示頁面 -->
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>DGOS Viewer Component 1017</title>
+		<!-- 載入 DGOS Viewer Web Component -->
+		<script type="module" src="./wc/dgos-1017.es.js"></script>
+		<!-- 頁面樣式設定 -->
+		<style>
+			body {
+				width: 100%;
+				height: 100dvh;
+				padding: 0;
+				margin: 0;
+				overflow: hidden;
+				position: relative;
+			}
+			#UI {
+				position: absolute;
+				top: 1em;
+				left: 1em;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- DGOS Viewer Web Component 主容器 -->
+		<dgos-viewer id="viewer" imagerytype="aerial" markerscsv=""> </dgos-viewer>
+		<!-- UI 控制面板 -->
+		<div id="UI">
+			<button onclick="flyToModel('BB')">Fly To Model BB</button>
+			<button onclick="flyToModel('AA')">Fly To Model AA</button>
+		</div>
+	</body>
+	<!-- Web Component 事件監聽與控制 -->
+	<script>
+		/**
+		 * imagerytype 屬性說明
+		 * - aerial 衛星圖
+		 * - aerialWithLabels 衛星圖帶路標
+		 * - road 路標
+		 */
+		const viewer = document.getElementById('viewer')
+
+		// 監聽 viewer ready 事件，初始化鏡頭位置
+		viewer.addEventListener('ready', () => {
+			console.log('載入成功')
+			// 設定初始鏡頭位置 [經度, 緯度, 高度, 方向, 俯仰角]
+			viewer.setCameraStatus([120.229415, 23.828431, 1988.300579, 0, 45.003179])
+
+			// 載入 CSV 文件並設置到 markerscsv 屬性
+			fetch('./models.csv')
+				.then((response) => response.text())
+				.then((csvData) => {
+					console.log('CSV 載入成功:', csvData)
+					viewer.setAttribute('markerscsv', csvData)
+				})
+				.catch((error) => {
+					console.error('CSV 載入失敗:', error)
+				})
+		})
+
+		// 監聽鏡頭狀態變化事件
+		viewer.addEventListener('camerastatus', ({ detail }) => {
+			console.log('鏡頭狀態', detail)
+		})
+		//選取
+		viewer.addEventListener('selected', ({ detail }) => {
+			console.log('選取', detail)
+		})
+
+		// 飛向指定 ID 的模型
+		function flyToModel(id) {
+			console.log('飛向模型:', id)
+			viewer.flyToId(id)
+		}
+	</script>
+</html>
