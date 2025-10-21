@@ -1,1458 +1,1554 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-TW">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>風力發電 EMS 監控系統</title>
-		<script type="module" src="./wc/dgos-1017.es.js"></script>
-		<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-		<link
-			rel="stylesheet"
-			href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-		/>
-		<style>
-			* {
-				box-sizing: border-box;
-			}
-
-			body,
-			#app {
-				width: 100%;
-				height: 100dvh;
-				padding: 0;
-				margin: 0;
-				overflow: hidden;
-				position: relative;
-				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
-					Cantarell, sans-serif;
-				background: linear-gradient(135deg, #0A1929 0%, #1A2332 50%, #0D1B2A 100%);
-			}
-
-			/* 全局玻璃拟态效果 */
-			.glass-panel {
-				background: rgba(255, 255, 255, 0.08);
-				backdrop-filter: blur(20px);
-				-webkit-backdrop-filter: blur(20px);
-				border: 1px solid rgba(255, 255, 255, 0.12);
-				box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-			}
-
-			/* 頂部標題欄 - 重新设计 */
-			.header {
-				position: absolute;
-				top: 0;
-				left: 0;
-				right: 0;
-				background: linear-gradient(
-					135deg,
-					rgba(10, 25, 41, 0.95) 0%,
-					rgba(13, 27, 42, 0.95) 100%
-				);
-				backdrop-filter: blur(20px);
-				-webkit-backdrop-filter: blur(20px);
-				color: white;
-				padding: 8px 20px;
-				z-index: 300;
-				box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-				border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-			}
-
-			.header h1 {
-				margin: 0;
-				font-size: 18px;
-				font-weight: 700;
-				display: flex;
-				align-items: center;
-				gap: 12px;
-				background: linear-gradient(135deg, #00E5FF 0%, #10B981 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
-				background-clip: text;
-			}
-
-			.header i {
-				font-size: 22px;
-				color: #00E5FF;
-				filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
-				animation: rotate 10s linear infinite;
-			}
-
-			@keyframes rotate {
-				from { transform: rotate(0deg); }
-				to { transform: rotate(360deg); }
-			}
-
-			.header-stats {
-				display: flex;
-				gap: 16px;
-				margin-top: 0;
-				font-size: 14px;
-			}
-
-			.stat-item {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				background: rgba(0, 229, 255, 0.08);
-				padding: 8px 16px;
-				border-radius: 8px;
-				border: 1px solid rgba(0, 229, 255, 0.15);
-				transition: all 0.3s ease;
-			}
-
-			.stat-item:hover {
-				background: rgba(0, 229, 255, 0.15);
-				border-color: rgba(0, 229, 255, 0.3);
-				transform: translateY(-2px);
-			}
-
-			.stat-item i {
-				color: #00E5FF;
-				font-size: 16px;
-				animation: none;
-			}
-
-			.stat-item strong {
-				color: #10B981;
-				font-weight: 700;
-				font-size: 16px;
-				text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-			}
-
-			/* 風機列表面板 - 重新設計 */
-			.models-panel {
-				position: absolute;
-				left: 20px;
-				top: 70px;
-				width: 300px;
-				background: rgba(10, 25, 41, 0.85);
-				backdrop-filter: blur(20px);
-				-webkit-backdrop-filter: blur(20px);
-				border-radius: 16px;
-				box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-				border: 1px solid rgba(0, 229, 255, 0.15);
-				overflow: hidden;
-				z-index: 200;
-				display: flex;
-				flex-direction: column;
-				max-height: calc(100vh - 100px);
-				animation: slideInLeft 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-			}
-
-			@keyframes slideInLeft {
-				from {
-					transform: translateX(-30px);
-					opacity: 0;
-				}
-				to {
-					transform: translateX(0);
-					opacity: 1;
-				}
-			}
-
-			.models-panel-header {
-				padding: 18px 20px;
-				border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-				font-weight: 700;
-				color: #00E5FF;
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				font-size: 15px;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			.models-panel-header i {
-				font-size: 18px;
-				filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
-			}
-
-			.models-list {
-				overflow-y: auto;
-				flex: 1;
-				padding: 12px;
-			}
-
-			.models-list::-webkit-scrollbar {
-				width: 8px;
-			}
-
-			.models-list::-webkit-scrollbar-track {
-				background: rgba(255, 255, 255, 0.03);
-				border-radius: 4px;
-			}
-
-			.models-list::-webkit-scrollbar-thumb {
-				background: rgba(0, 229, 255, 0.3);
-				border-radius: 4px;
-			}
-
-			.models-list::-webkit-scrollbar-thumb:hover {
-				background: rgba(0, 229, 255, 0.5);
-			}
-
-			.model-item {
-				padding: 14px 16px;
-				margin-bottom: 8px;
-				background: rgba(255, 255, 255, 0.05);
-				border: 1px solid rgba(255, 255, 255, 0.08);
-				border-radius: 10px;
-				cursor: pointer;
-				transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-				display: flex;
-				align-items: center;
-				gap: 12px;
-				position: relative;
-				overflow: hidden;
-			}
-
-			.model-item::before {
-				content: '';
-				position: absolute;
-				left: 0;
-				top: 0;
-				width: 4px;
-				height: 100%;
-				background: linear-gradient(180deg, #00E5FF 0%, #10B981 100%);
-				opacity: 0;
-				transition: opacity 0.3s ease;
-			}
-
-			.model-item:hover {
-				background: rgba(0, 229, 255, 0.12);
-				border-color: rgba(0, 229, 255, 0.3);
-				transform: translateX(6px);
-				box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
-			}
-
-			.model-item:hover::before {
-				opacity: 1;
-			}
-
-			.model-item.active {
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
-				border-color: rgba(0, 229, 255, 0.5);
-				box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3);
-				color: white;
-			}
-
-			.model-item.active::before {
-				opacity: 1;
-			}
-
-			.model-item-icon {
-				font-size: 20px;
-				flex-shrink: 0;
-				color: #00E5FF;
-				filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
-			}
-
-			.model-item.active .model-item-icon {
-				animation: rotate 8s linear infinite;
-			}
-
-			.model-item-info {
-				flex: 1;
-				min-width: 0;
-			}
-
-			.model-item-name {
-				font-weight: 600;
-				font-size: 14px;
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				color: #E0E7FF;
-				display: flex;
-				align-items: center;
-				gap: 8px;
-			}
-
-			.model-item-id {
-				font-size: 12px;
-				opacity: 0.7;
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				color: #A5B4FC;
-				margin-top: 2px;
-			}
-
-			/* 状态指示器 - 更大更醒目 */
-			.status-indicator {
-				display: inline-block;
-				width: 10px;
-				height: 10px;
-				border-radius: 50%;
-				flex-shrink: 0;
-			}
-
-			.status-running {
-				background: #10B981;
-				box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 24px rgba(16, 185, 129, 0.4);
-				animation: pulse-running 2s ease-in-out infinite;
-			}
-
-			@keyframes pulse-running {
-				0%, 100% {
-					box-shadow: 0 0 12px rgba(16, 185, 129, 0.8), 0 0 24px rgba(16, 185, 129, 0.4);
-				}
-				50% {
-					box-shadow: 0 0 16px rgba(16, 185, 129, 1), 0 0 32px rgba(16, 185, 129, 0.6);
-				}
-			}
-
-			.status-warning {
-				background: #F59E0B;
-				box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 0 24px rgba(245, 158, 11, 0.4);
-				animation: pulse-warning 1.5s ease-in-out infinite;
-			}
-
-			@keyframes pulse-warning {
-				0%, 100% {
-					box-shadow: 0 0 12px rgba(245, 158, 11, 0.8), 0 0 24px rgba(245, 158, 11, 0.4);
-				}
-				50% {
-					box-shadow: 0 0 16px rgba(245, 158, 11, 1), 0 0 32px rgba(245, 158, 11, 0.6);
-				}
-			}
-
-			.status-offline {
-				background: #EF4444;
-				box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
-			}
-
-			/* 監控儀表板面板 - 重新設計 */
-			.dashboard-panel {
-				position: absolute;
-				right: 20px;
-				top: 70px;
-				width: 380px;
-				background: rgba(10, 25, 41, 0.85);
-				backdrop-filter: blur(20px);
-				-webkit-backdrop-filter: blur(20px);
-				border-radius: 16px;
-				box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-				border: 1px solid rgba(0, 229, 255, 0.15);
-				overflow: hidden;
-				z-index: 200;
-				max-height: calc(100vh - 100px);
-				display: flex;
-				flex-direction: column;
-				animation: slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-			}
-
-			@keyframes slideInRight {
-				from {
-					transform: translateX(30px);
-					opacity: 0;
-				}
-				to {
-					transform: translateX(0);
-					opacity: 1;
-				}
-			}
-
-			.dashboard-header {
-				padding: 18px 20px;
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-				color: white;
-				font-weight: 700;
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-			}
-
-			.dashboard-title {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				font-size: 15px;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-				color: #00E5FF;
-			}
-
-			.dashboard-title i {
-				font-size: 18px;
-				filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
-			}
-
-			.dashboard-content {
-				flex: 1;
-				overflow-y: auto;
-				padding: 16px;
-			}
-
-			.dashboard-content::-webkit-scrollbar {
-				width: 8px;
-			}
-
-			.dashboard-content::-webkit-scrollbar-track {
-				background: rgba(255, 255, 255, 0.03);
-				border-radius: 4px;
-			}
-
-			.dashboard-content::-webkit-scrollbar-thumb {
-				background: rgba(0, 229, 255, 0.3);
-				border-radius: 4px;
-			}
-
-			/* 指标卡片 - 渐变设计 */
-			.metric-card {
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-				border-radius: 12px;
-				padding: 18px;
-				margin-bottom: 14px;
-				border: 1px solid rgba(0, 229, 255, 0.2);
-				transition: all 0.3s ease;
-				position: relative;
-				overflow: hidden;
-			}
-
-			.metric-card::before {
-				content: '';
-				position: absolute;
-				top: 0;
-				left: 0;
-				width: 4px;
-				height: 100%;
-				background: linear-gradient(180deg, #00E5FF 0%, #10B981 100%);
-			}
-
-			.metric-card:hover {
-				transform: translateY(-4px);
-				box-shadow: 0 8px 24px rgba(0, 229, 255, 0.2);
-				border-color: rgba(0, 229, 255, 0.4);
-			}
-
-			.metric-card.power {
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.15) 0%, rgba(0, 184, 217, 0.08) 100%);
-			}
-
-			.metric-card.power::before {
-				background: linear-gradient(180deg, #00E5FF 0%, #00B8D9 100%);
-			}
-
-			.metric-card.wind {
-				background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%);
-			}
-
-			.metric-card.wind::before {
-				background: linear-gradient(180deg, #10B981 0%, #059669 100%);
-			}
-
-			.metric-card.efficiency {
-				background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.08) 100%);
-			}
-
-			.metric-card.efficiency::before {
-				background: linear-gradient(180deg, #F59E0B 0%, #D97706 100%);
-			}
-
-			.metric-header {
-				display: flex;
-				align-items: center;
-				justify-content: space-between;
-				margin-bottom: 10px;
-			}
-
-			.metric-label {
-				font-size: 13px;
-				color: #A5B4FC;
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				font-weight: 600;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			.metric-label i {
-				color: #00E5FF;
-				font-size: 16px;
-			}
-
-			.metric-value {
-				font-size: 32px;
-				font-weight: 800;
-				background: linear-gradient(135deg, #00E5FF 0%, #10B981 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
-				background-clip: text;
-				line-height: 1.2;
-				text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
-			}
-
-			.metric-card.power .metric-value {
-				background: linear-gradient(135deg, #00E5FF 0%, #00B8D9 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
-			}
-
-			.metric-card.wind .metric-value {
-				background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
-			}
-
-			.metric-card.efficiency .metric-value {
-				background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
-			}
-
-			.metric-unit {
-				font-size: 16px;
-				color: #A5B4FC;
-				margin-left: 6px;
-				font-weight: 600;
-			}
-
-			.metric-trend {
-				font-size: 13px;
-				margin-top: 6px;
-				color: #94A3B8;
-				display: flex;
-				align-items: center;
-				gap: 6px;
-			}
-
-			.trend-up {
-				color: #10B981;
-			}
-
-			.trend-down {
-				color: #EF4444;
-			}
-
-			/* 圖表容器 */
-			.chart-container {
-				background: rgba(255, 255, 255, 0.05);
-				border-radius: 12px;
-				padding: 18px;
-				margin-bottom: 14px;
-				border: 1px solid rgba(0, 229, 255, 0.15);
-				transition: all 0.3s ease;
-			}
-
-			/* 圖表 canvas 容器優化 */
-			.chart-container canvas {
-				display: block;
-				max-width: 100%;
-				height: 150px !important;
-			}
-
-			.chart-container:hover {
-				border-color: rgba(0, 229, 255, 0.3);
-				box-shadow: 0 4px 16px rgba(0, 229, 255, 0.1);
-			}
-
-			.chart-title {
-				font-size: 14px;
-				font-weight: 700;
-				color: #E0E7FF;
-				margin-bottom: 14px;
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			.chart-title i {
-				color: #00E5FF;
-				font-size: 16px;
-			}
-
-			/* 詳情面板 - 重新设计 */
-			.detail-panel {
-				position: absolute;
-				right: 20px;
-				bottom: 20px;
-				width: 340px;
-			max-height: 420px;
-				background: rgba(10, 25, 41, 0.9);
-				backdrop-filter: blur(20px);
-				-webkit-backdrop-filter: blur(20px);
-				border-radius: 16px;
-				box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-				border: 1px solid rgba(0, 229, 255, 0.15);
-				overflow: hidden;
-				z-index: 250;
-				animation: slideInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-			display: flex;
-			flex-direction: column;
-			}
-
-			@keyframes slideInUp {
-				from {
-					transform: translateY(30px);
-					opacity: 0;
-				}
-				to {
-					transform: translateY(0);
-					opacity: 1;
-				}
-			}
-
-			.detail-header {
-				padding: 20px;
-				background: linear-gradient(135deg, rgba(0, 229, 255, 0.2) 0%, rgba(16, 185, 129, 0.15) 100%);
-				color: white;
-				display: flex;
-				justify-content: space-between;
-				align-items: flex-start;
-				border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-			}
-
-			.detail-title {
-				flex: 1;
-			}
-
-			.detail-title h3 {
-				margin: 0 0 6px 0;
-				font-size: 18px;
-				font-weight: 700;
-				color: #E0E7FF;
-				display: flex;
-				align-items: center;
-				gap: 10px;
-			}
-
-			.detail-id {
-				font-size: 12px;
-				opacity: 0.7;
-				color: #A5B4FC;
-			}
-
-			.close-btn {
-				background: rgba(239, 68, 68, 0.2);
-				border: 1px solid rgba(239, 68, 68, 0.3);
-				color: white;
-				width: 36px;
-				height: 36px;
-				border-radius: 8px;
-				cursor: pointer;
-				font-size: 16px;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				transition: all 0.3s ease;
-			}
-
-			.close-btn:hover {
-				background: rgba(239, 68, 68, 0.4);
-				border-color: rgba(239, 68, 68, 0.5);
-				transform: scale(1.1) rotate(90deg);
-			}
-
-			.detail-content {
-				padding: 20px;
-				max-height: 250px;
-				overflow-y: auto;
-			}
-
-			.detail-content::-webkit-scrollbar {
-				width: 8px;
-			}
-
-			.detail-content::-webkit-scrollbar-track {
-				background: rgba(255, 255, 255, 0.03);
-				border-radius: 4px;
-			}
-
-			.detail-content::-webkit-scrollbar-thumb {
-				background: rgba(0, 229, 255, 0.3);
-				border-radius: 4px;
-			}
-
-			.detail-section {
-				margin-bottom: 18px;
-			}
-
-			.detail-section:last-child {
-				margin-bottom: 0;
-			}
-
-			.detail-label {
-				font-weight: 700;
-				color: #00E5FF;
-				font-size: 12px;
-				text-transform: uppercase;
-				letter-spacing: 0.8px;
-				margin-bottom: 8px;
-				display: flex;
-				align-items: center;
-				gap: 8px;
-			}
-
-			.detail-label i {
-				font-size: 14px;
-				filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.5));
-			}
-
-			.detail-value {
-				font-size: 14px;
-				color: #E0E7FF;
-				word-break: break-all;
-				padding: 12px 14px;
-				background: rgba(0, 229, 255, 0.05);
-				border-radius: 8px;
-				border-left: 3px solid #00E5FF;
-				line-height: 1.6;
-			}
-
-			.detail-actions {
-				padding: 16px 20px;
-				border-top: 1px solid rgba(0, 229, 255, 0.15);
-				display: grid;
-				grid-template-columns: 1fr 1fr;
-				gap: 12px;
-			}
-
-			.action-btn {
-				padding: 12px 14px;
-				border: none;
-				border-radius: 8px;
-				cursor: pointer;
-				font-size: 13px;
-				font-weight: 700;
-				transition: all 0.3s ease;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				gap: 8px;
-				text-transform: uppercase;
-				letter-spacing: 0.5px;
-			}
-
-			.action-btn-primary {
-				background: linear-gradient(135deg, #00E5FF 0%, #10B981 100%);
-				color: #0A1929;
-				box-shadow: 0 4px 12px rgba(0, 229, 255, 0.3);
-			}
-
-			.action-btn-primary:hover {
-				transform: translateY(-3px);
-				box-shadow: 0 6px 20px rgba(0, 229, 255, 0.5);
-			}
-
-			.action-btn-secondary {
-				background: rgba(255, 255, 255, 0.08);
-				color: #E0E7FF;
-				border: 1px solid rgba(255, 255, 255, 0.15);
-			}
-
-			.action-btn-secondary:hover {
-				background: rgba(255, 255, 255, 0.15);
-				border-color: rgba(255, 255, 255, 0.3);
-			}
-
-			/* 空狀態 */
-			.empty-state {
-				padding: 60px 20px;
-				text-align: center;
-				color: #94A3B8;
-			}
-
-			.empty-state i {
-				font-size: 64px;
-				margin-bottom: 16px;
-				opacity: 0.3;
-				color: #00E5FF;
-				filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.3));
-			}
-
-			.empty-state p {
-				margin: 0;
-				font-size: 15px;
-				color: #A5B4FC;
-			}
-
-			.no-models {
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				height: 100%;
-				color: #94A3B8;
-				font-size: 15px;
-			}
-
-			/* 状态统计行 */
-			.status-row {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				margin-bottom: 10px;
-				font-size: 14px;
-				padding: 10px 12px;
-				background: rgba(255, 255, 255, 0.03);
-				border-radius: 8px;
-				transition: all 0.3s ease;
-			}
-
-			.status-row:hover {
-				background: rgba(255, 255, 255, 0.08);
-			}
-
-			.status-row:last-child {
-				margin-bottom: 0;
-			}
-
-			.status-row span {
-				display: flex;
-				align-items: center;
-				gap: 10px;
-				color: #E0E7FF;
-			}
-
-			.status-row strong {
-				font-weight: 700;
-				font-size: 18px;
-			}
-
-			.status-row.running strong {
-				color: #10B981;
-				text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-			}
-
-			.status-row.warning strong {
-				color: #F59E0B;
-				text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-			}
-
-			.status-row.offline strong {
-				color: #EF4444;
-				text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-			}
-
-			/* 響應式設計 */
-			@media (max-width: 768px) {
-				.models-panel {
-					width: 260px;
-					left: 10px;
-					top: 70px;
-				}
-
-				.dashboard-panel {
-					width: 320px;
-					right: 10px;
-				}
-
-				.detail-panel {
-					width: calc(100% - 20px);
-					right: 10px;
-					bottom: 10px;
-					max-height: 320px;
-				}
-
-				.detail-content {
-					max-height: 180px;
-				}
-
-				.header {
-					padding: 12px 16px;
-				}
-
-				.header h1 {
-					font-size: 18px;
-				}
-
-				.header-stats {
-					flex-wrap: wrap;
-					gap: 8px;
-				}
-			}
-		</style>
-	</head>
-	<body>
-		<div id="app">
-			<!-- GIS Viewer -->
-			<dgos-viewer ref="viewer" markerscsv="" imagerytype="aerial"> </dgos-viewer>
-
-			<!-- 頂部標題欄 -->
-			<div class="header">
-				<h1>
-					<i class="fas fa-wind"></i>
-					風力發電 EMS 監控系統
-				</h1>
-				<div class="header-stats">
-					<div class="stat-item">
-						<i class="fas fa-bolt"></i>
-						<span>總發電: <strong>{{ totalPower.toFixed(1) }} MW</strong></span>
-					</div>
-					<div class="stat-item">
-						<i class="fas fa-check-circle"></i>
-						<span>運行中: <strong>{{ runningTurbines }}/{{ models.length }}</strong></span>
-					</div>
-				</div>
-			</div>
-
-			<!-- 風機列表面板 -->
-			<div class="models-panel" v-if="models.length > 0">
-				<div class="models-panel-header">
-					<i class="fas fa-wind"></i>
-					風機列表 ({{ models.length }})
-				</div>
-				<div class="models-list">
-					<div
-						v-for="model in models"
-						:key="model.id"
-						class="model-item"
-						:class="{ active: selectedModel?.id === model.id }"
-						@click="selectModel(model)"
-					>
-						<i class="fas fa-wind model-item-icon"></i>
-						<div class="model-item-info">
-							<div class="model-item-name">
-								<span :class="'status-indicator status-' + model.status"></span>
-								{{ model.name || model.id }}
-							</div>
-							<div class="model-item-id">
-								功率: {{ model.power?.toFixed(1) || '0.0' }} MW
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- 監控儀表板面板 -->
-			<div class="dashboard-panel">
-				<div class="dashboard-header">
-					<div class="dashboard-title">
-						<i class="fas fa-chart-line"></i>
-						即時監控
-					</div>
-					<button class="close-btn" @click="showDashboard = false" v-if="false">
-						<i class="fas fa-times"></i>
-					</button>
-				</div>
-				<div class="dashboard-content">
-					<!-- 即時功率指標 -->
-					<div class="metric-card power">
-						<div class="metric-header">
-							<div class="metric-label">
-								<i class="fas fa-bolt"></i>
-								總發電功率
-							</div>
-						</div>
-						<div>
-							<span class="metric-value">{{ totalPower.toFixed(1) }}</span>
-							<span class="metric-unit">MW</span>
-						</div>
-						<div class="metric-trend">
-							<i class="fas fa-info-circle"></i>
-							當前運行中風機: {{ runningTurbines }} 台
-						</div>
-					</div>
-
-					<!-- 平均風速 -->
-					<div class="metric-card wind">
-						<div class="metric-header">
-							<div class="metric-label">
-								<i class="fas fa-wind"></i>
-								平均風速
-							</div>
-						</div>
-						<div>
-							<span class="metric-value">{{ avgWindSpeed.toFixed(1) }}</span>
-							<span class="metric-unit">m/s</span>
-						</div>
-						<div class="metric-trend">
-							<i class="fas fa-check-circle"></i>
-							風況: 良好
-						</div>
-					</div>
-
-					<!-- 發電效率 -->
-					<div class="metric-card efficiency">
-						<div class="metric-header">
-							<div class="metric-label">
-								<i class="fas fa-tachometer-alt"></i>
-								發電效率
-							</div>
-						</div>
-						<div>
-							<span class="metric-value">{{ efficiency.toFixed(1) }}</span>
-							<span class="metric-unit">%</span>
-						</div>
-						<div class="metric-trend">
-							<i class="fas fa-cog"></i>
-							系統狀態: 正常
-						</div>
-					</div>
-
-					<!-- 功率趨勢圖表 -->
-					<div class="chart-container">
-						<div class="chart-title">
-							<i class="fas fa-chart-area"></i>
-							24小時功率趨勢
-						</div>
-						<canvas ref="powerChart" height="150"></canvas>
-					</div>
-
-					<!-- 風機狀態統計 -->
-					<div class="chart-container">
-						<div class="chart-title">
-							<i class="fas fa-info-circle"></i>
-							風機狀態統計
-						</div>
-						<div style="padding: 8px 0;">
-							<div class="status-row running">
-								<span>
-									<span class="status-indicator status-running"></span>
-									運行中
-								</span>
-								<strong>{{ runningTurbines }}</strong>
-							</div>
-							<div class="status-row warning">
-								<span>
-									<span class="status-indicator status-warning"></span>
-									維護中
-								</span>
-								<strong>{{ maintenanceTurbines }}</strong>
-							</div>
-							<div class="status-row offline">
-								<span>
-									<span class="status-indicator status-offline"></span>
-									離線
-								</span>
-								<strong>{{ offlineTurbines }}</strong>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- 詳情面板 -->
-			<div class="detail-panel" v-if="selectedModel">
-				<div class="detail-header">
-					<div class="detail-title">
-						<h3>
-							<span :class="'status-indicator status-' + selectedModel.status"></span>
-							{{ selectedModel.name || selectedModel.id }}
-						</h3>
-						<div class="detail-id">{{ selectedModel.id }}</div>
-					</div>
-					<button class="close-btn" @click="selectedModel = null">
-						<i class="fas fa-times"></i>
-					</button>
-				</div>
-
-				<div class="detail-content">
-					<!-- 運行狀態 -->
-					<div class="detail-section">
-						<div class="detail-label">
-							<i class="fas fa-info-circle"></i>
-							運行狀態
-						</div>
-						<div class="detail-value">
-							{{ selectedModel.statusText || '運行中' }}
-						</div>
-					</div>
-
-					<!-- 發電數據 -->
-					<div class="detail-section">
-						<div class="detail-label">
-							<i class="fas fa-bolt"></i>
-							發電數據
-						</div>
-						<div class="detail-value">
-							即時功率: {{ selectedModel.power?.toFixed(2) || '0.00' }} MW<br />
-							風速: {{ selectedModel.windSpeed?.toFixed(1) || '0.0' }} m/s<br />
-							轉速: {{ selectedModel.rotationSpeed?.toFixed(0) || '0' }} RPM
-						</div>
-					</div>
-
-					<!-- 位置資訊 -->
-					<div class="detail-section">
-						<div class="detail-label">
-							<i class="fas fa-map-marker-alt"></i>
-							位置座標
-						</div>
-						<div class="detail-value">
-							經度: {{ selectedModel.coordinate?.longitude?.toFixed(6) || 'N/A' }}<br />
-							緯度: {{ selectedModel.coordinate?.latitude?.toFixed(6) || 'N/A' }}<br />
-							高度: {{ selectedModel.coordinate?.height?.toFixed(2) || '0' }} m
-						</div>
-					</div>
-
-					<!-- 今日統計 -->
-					<div class="detail-section">
-						<div class="detail-label">
-							<i class="fas fa-chart-bar"></i>
-							今日統計
-						</div>
-						<div class="detail-value">
-							發電量: {{ selectedModel.dailyEnergy?.toFixed(1) || '0.0' }} MWh<br />
-							運行時數: {{ selectedModel.runningHours?.toFixed(1) || '0.0' }} 小時<br />
-							利用率: {{ selectedModel.utilizationRate?.toFixed(1) || '0.0' }}%
-						</div>
-					</div>
-				</div>
-
-				<div class="detail-actions">
-					<button class="action-btn action-btn-primary" @click="flyToModel">
-						<i class="fas fa-binoculars"></i>
-						飛到位置
-					</button>
-					<button class="action-btn action-btn-secondary" @click="selectedModel = null">
-						<i class="fas fa-times"></i>
-						關閉
-					</button>
-				</div>
-			</div>
-
-			<!-- 空狀態提示 -->
-			<div class="no-models" v-if="models.length === 0">
-				<div class="empty-state">
-					<i class="fas fa-hourglass-start"></i>
-					<p>正在載入模型資料...</p>
-				</div>
-			</div>
-		</div>
-
-		<script>
-			const { createApp, ref, onMounted, computed, nextTick } = Vue
-
-			createApp({
-				compilerOptions: {
-					isCustomElement: (tag) => tag === 'dgos-viewer'
-				},
-				setup() {
-					const viewer = ref(null)
-					const powerChart = ref(null)
-					const models = ref([])
-					const selectedModel = ref(null)
-					const showDashboard = ref(true)
-
-					// 監控數據
-					const totalPower = ref(0)
-					const avgWindSpeed = ref(8.5)
-					const efficiency = ref(87.3)
-
-					let chartInstance = null
-
-					// 生成假的風機狀態
-					const turbineStatuses = ['running', 'running', 'running', 'running', 'warning', 'offline']
-					const statusTexts = {
-						'running': '正常運行',
-						'warning': '維護中',
-						'offline': '離線'
-					}
-
-					// 計算統計數據
-					const runningTurbines = computed(() =>
-						models.value.filter(m => m.status === 'running').length
-					)
-					const maintenanceTurbines = computed(() =>
-						models.value.filter(m => m.status === 'warning').length
-					)
-					const offlineTurbines = computed(() =>
-						models.value.filter(m => m.status === 'offline').length
-					)
-
-					// 解析 CSV 資料並添加假的監控數據
-					const parseModelsFromCSV = (csv) => {
-						const lines = csv.trim().split('\n')
-						if (lines.length < 2) return
-
-						// 跳過表頭
-						const header = lines[0].split(',').map((h) => h.trim())
-						models.value = lines.slice(1).map((line, index) => {
-							const values = line.split(',').map((v) => v.trim())
-							const modelObj = {}
-							header.forEach((key, idx) => {
-								modelObj[key] = values[idx]
-							})
-
-							// 生成假的監控數據
-							const status = turbineStatuses[index % turbineStatuses.length]
-							const power = status === 'running' ? (2.0 + Math.random() * 1.5) :
-										  status === 'warning' ? (0.5 + Math.random() * 0.5) : 0
-							const windSpeed = status === 'offline' ? 0 : (6.0 + Math.random() * 6.0)
-							const rotationSpeed = status === 'offline' ? 0 : (10 + Math.random() * 10)
-
-							return {
-								id: modelObj.id || `model-${Math.random()}`,
-								name: modelObj.name || '未命名風機',
-								glbPath: modelObj.glbPath || '',
-								coordinate: {
-									longitude: parseFloat(modelObj.longitude || 0),
-									latitude: parseFloat(modelObj.latitude || 0),
-									height: parseFloat(modelObj.height || 1988.3)
-								},
-								orientation: {
-									heading: parseFloat(modelObj.heading || 0),
-									pitch: parseFloat(modelObj.pitch || 45)
-								},
-								scale: parseFloat(modelObj.scale || 100),
-								// 新增監控數據
-								status: status,
-								statusText: statusTexts[status],
-								power: power,
-								windSpeed: windSpeed,
-								rotationSpeed: rotationSpeed,
-								dailyEnergy: power * (18 + Math.random() * 6),
-								runningHours: status === 'running' ? (20 + Math.random() * 4) :
-											  status === 'warning' ? (10 + Math.random() * 5) : 0,
-								utilizationRate: status === 'running' ? (80 + Math.random() * 15) :
-												 status === 'warning' ? (40 + Math.random() * 20) : 0
-							}
-						})
-
-						// 計算總功率
-						totalPower.value = models.value.reduce((sum, m) => sum + (m.power || 0), 0)
-
-						console.log('解析風機模型:', models.value)
-					}
-
-					// 飛到模型位置
-					const flyToModel = () => {
-						if (!selectedModel.value || !viewer.value) {
-							console.warn('未選擇模型或 viewer 未初始化')
-							return
-						}
-
-						const modelId = selectedModel.value.id
-						console.log('飛向模型:', modelId)
-
-						// 直接在 DOM 元素上調用 flyToId 方法
-						if (typeof viewer.value.flyToId === 'function') {
-							viewer.value.flyToId(modelId)
-						} else {
-							console.error('flyToId 方法未找到')
-						}
-					}
-
-					// 選擇模型
-					const selectModel = (model) => {
-						selectedModel.value = model
-					}
-
-					// 初始化功率趨勢圖表 - 優化設計
-					const initPowerChart = () => {
-						nextTick(() => {
-							if (!powerChart.value) return
-
-							const ctx = powerChart.value.getContext('2d')
-
-							// 生成過去24小時的假數據 - 模擬真實風力發電波動
-							const now = new Date()
-							const labels = []
-							const data = []
-							for (let i = 23; i >= 0; i--) {
-								const hour = new Date(now - i * 60 * 60 * 1000)
-								labels.push(hour.getHours() + ':00')
-
-								const baseHour = hour.getHours()
-								let basePower = 0
-
-								// 模擬真實風力發電特性：波浪形曲線
-								// - 凌晨0-6點：風速通常較穩定，功率中等 (5-7 MW)
-								// - 早上6-12點：風速增強，功率上升 (6-10 MW)
-								// - 下午12-18點：風速最強，功率最高但有波動 (8-11 MW)
-								// - 晚上18-24點：風速減弱，功率下降 (6-8 MW)
-
-								if (baseHour >= 0 && baseHour < 6) {
-									// 凌晨：平穩的中低功率，使用餘弦波
-									basePower = 6 + Math.cos((baseHour / 6) * Math.PI) * 1
-								} else if (baseHour >= 6 && baseHour < 12) {
-									// 早上：功率逐漸上升
-									basePower = 6 + ((baseHour - 6) / 6) * 4 + Math.sin((baseHour - 6) / 3 * Math.PI) * 0.5
-								} else if (baseHour >= 12 && baseHour < 18) {
-									// 下午：功率最高，使用正弦波模擬波動
-									basePower = 9 + Math.sin((baseHour - 12) / 6 * Math.PI * 2) * 1.5
-								} else {
-									// 晚上：功率逐漸下降
-									basePower = 8 - ((baseHour - 18) / 6) * 2 + Math.sin((baseHour - 18) / 3 * Math.PI) * 0.5
-								}
-
-								// 添加小幅隨機波動模擬風速變化 (±0.3 MW)
-								data.push(Math.max(4, basePower + (Math.random() - 0.5) * 0.6))
-							}
-
-							// 創建漸變背景（一次性創建，避免重複計算）
-							const gradient = ctx.createLinearGradient(0, 0, 0, 150)
-							gradient.addColorStop(0, 'rgba(0, 229, 255, 0.3)')
-							gradient.addColorStop(0.5, 'rgba(0, 229, 255, 0.1)')
-							gradient.addColorStop(1, 'rgba(0, 229, 255, 0)')
-
-							// 銷毀舊圖表
-							if (chartInstance) {
-								chartInstance.destroy()
-							}
-
-							chartInstance = new Chart(ctx, {
-								type: 'line',
-								data: {
-									labels: labels,
-									datasets: [{
-										label: '總功率 (MW)',
-										data: data,
-										borderColor: '#00E5FF',
-										backgroundColor: gradient,
-										borderWidth: 3,
-										tension: 0.4,
-										fill: true,
-										pointRadius: 0,
-										pointHoverRadius: 6,
-										pointHoverBackgroundColor: '#00E5FF',
-										pointHoverBorderColor: '#fff',
-										pointHoverBorderWidth: 2
-									}]
-								},
-								options: {
-									responsive: true,
-									maintainAspectRatio: false,
-									// 禁用動畫以提升效能
-									animation: false,
-									// 優化效能設置
-									parsing: false,
-									normalized: true,
-									plugins: {
-										legend: {
-											display: false
-										},
-										tooltip: {
-											mode: 'index',
-											intersect: false,
-											backgroundColor: 'rgba(10, 25, 41, 0.95)',
-											titleColor: '#00E5FF',
-											bodyColor: '#E0E7FF',
-											borderColor: 'rgba(0, 229, 255, 0.3)',
-											borderWidth: 1,
-											padding: 12,
-											cornerRadius: 8,
-											displayColors: false,
-											callbacks: {
-												label: function(context) {
-													return '功率: ' + context.parsed.y.toFixed(2) + ' MW'
-												}
-											}
-										}
-									},
-									scales: {
-										x: {
-											grid: {
-												display: false
-											},
-											ticks: {
-												maxTicksLimit: 8,
-												color: '#94A3B8',
-												font: {
-													size: 11
-												}
-											},
-											border: {
-												color: 'rgba(255, 255, 255, 0.1)'
-											}
-										},
-										y: {
-											beginAtZero: true,
-											grid: {
-												color: 'rgba(0, 229, 255, 0.1)',
-												lineWidth: 1
-											},
-											ticks: {
-												color: '#94A3B8',
-												font: {
-													size: 11
-												},
-												callback: function(value) {
-													return value.toFixed(1) + ' MW'
-												}
-											},
-											border: {
-												display: false
-											}
-										}
-									},
-									interaction: {
-										mode: 'nearest',
-										axis: 'x',
-										intersect: false
-									}
-								}
-							})
-						})
-					}
-
-
-					onMounted(() => {
-						const viewerElement = viewer.value
-						if (!viewerElement) return
-
-						console.log('viewer element:', viewerElement)
-
-						// 監聽 selected 事件 - 用戶從地圖點選模型
-						viewerElement.addEventListener('selected', ({ detail }) => {
-							console.log('選取:', detail)
-							if (detail) {
-								const model = models.value.find((m) => m.id === detail)
-								if (model) {
-									selectedModel.value = model
-								}
-							} else {
-								selectedModel.value = null
-							}
-						})
-
-						// 監聽 camerastatus 事件
-						viewerElement.addEventListener('camerastatus', ({ detail }) => {
-							console.log('鏡頭狀態:', detail)
-						})
-
-						// 監聽 ready 事件 - viewer 初始化完成
-						viewerElement.addEventListener('ready', () => {
-							console.log('載入成功')
-
-							// 設定初始鏡頭位置 [經度, 緯度, 高度, 方向, 俯仰角]
-							viewerElement.setCameraStatus([120.229415, 23.828431, 1988.300579, 0, 45.003179])
-
-							// 載入 CSV 文件並設置到 markerscsv 屬性
-							fetch('/models.csv')
-								.then((response) => response.text())
-								.then((csvData) => {
-									console.log('CSV 載入成功:', csvData)
-									// 重要：設置 markerscsv 屬性到 Web Component 讓其載入模型
-									viewerElement.setAttribute('markerscsv', csvData)
-									// 解析模型資料用於 Vue 側邊欄列表
-									parseModelsFromCSV(csvData)
-
-									// 初始化圖表 (靜態展示)
-									setTimeout(() => {
-										initPowerChart()
-									}, 500)
-								})
-								.catch((error) => {
-									console.error('CSV 載入失敗:', error)
-								})
-						})
-					})
-
-					return {
-						viewer,
-						powerChart,
-						models,
-						selectedModel,
-						showDashboard,
-						totalPower,
-						avgWindSpeed,
-						efficiency,
-						runningTurbines,
-						maintenanceTurbines,
-						offlineTurbines,
-						flyToModel,
-						selectModel
-					}
-				}
-			}).mount('#app')
-		</script>
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>風力發電 EMS 監控系統</title>
+    <script type="module" src="./wc/dgos-1017.es.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body,
+      #app {
+        width: 100%;
+        height: 100dvh;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        position: relative;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #0a1929 0%,
+          #1a2332 50%,
+          #0d1b2a 100%
+        );
+      }
+
+      /* 全局玻璃拟态效果 */
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      }
+
+      /* 頂部標題欄 - 重新设计 */
+      .header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(
+          135deg,
+          rgba(10, 25, 41, 0.95) 0%,
+          rgba(13, 27, 42, 0.95) 100%
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        color: white;
+        padding: 8px 20px;
+        z-index: 300;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+        border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: linear-gradient(135deg, #00e5ff 0%, #10b981 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .header i {
+        font-size: 22px;
+        color: #00e5ff;
+        filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.6));
+        animation: rotate 10s linear infinite;
+      }
+
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .header-stats {
+        display: flex;
+        gap: 16px;
+        margin-top: 0;
+        font-size: 14px;
+      }
+
+      .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 229, 255, 0.08);
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 1px solid rgba(0, 229, 255, 0.15);
+        transition: all 0.3s ease;
+      }
+
+      .stat-item:hover {
+        background: rgba(0, 229, 255, 0.15);
+        border-color: rgba(0, 229, 255, 0.3);
+        transform: translateY(-2px);
+      }
+
+      .stat-item i {
+        color: #00e5ff;
+        font-size: 16px;
+        animation: none;
+      }
+
+      .stat-item strong {
+        color: #10b981;
+        font-weight: 700;
+        font-size: 16px;
+        text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+      }
+
+      /* 風機列表面板 - 重新設計 */
+      .models-panel {
+        position: absolute;
+        left: 20px;
+        top: 70px;
+        width: 300px;
+        background: rgba(10, 25, 41, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(0, 229, 255, 0.15);
+        overflow: hidden;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 100px);
+        animation: slideInLeft 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes slideInLeft {
+        from {
+          transform: translateX(-30px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .models-panel-header {
+        padding: 18px 20px;
+        border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.1) 0%,
+          rgba(16, 185, 129, 0.05) 100%
+        );
+        font-weight: 700;
+        color: #00e5ff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .models-panel-header i {
+        font-size: 18px;
+        filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+      }
+
+      .models-list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 12px;
+      }
+
+      .models-list::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .models-list::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 4px;
+      }
+
+      .models-list::-webkit-scrollbar-thumb {
+        background: rgba(0, 229, 255, 0.3);
+        border-radius: 4px;
+      }
+
+      .models-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 229, 255, 0.5);
+      }
+
+      .model-item {
+        padding: 14px 16px;
+        margin-bottom: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .model-item::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #00e5ff 0%, #10b981 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      .model-item:hover {
+        background: rgba(0, 229, 255, 0.12);
+        border-color: rgba(0, 229, 255, 0.3);
+        transform: translateX(6px);
+        box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
+      }
+
+      .model-item:hover::before {
+        opacity: 1;
+      }
+
+      .model-item.active {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.2) 0%,
+          rgba(16, 185, 129, 0.15) 100%
+        );
+        border-color: rgba(0, 229, 255, 0.5);
+        box-shadow: 0 4px 20px rgba(0, 229, 255, 0.3);
+        color: white;
+      }
+
+      .model-item.active::before {
+        opacity: 1;
+      }
+
+      .model-item-icon {
+        font-size: 20px;
+        flex-shrink: 0;
+        color: #00e5ff;
+        filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+      }
+
+      .model-item.active .model-item-icon {
+        animation: rotate 8s linear infinite;
+      }
+
+      .model-item-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .model-item-name {
+        font-weight: 600;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #e0e7ff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .model-item-id {
+        font-size: 12px;
+        opacity: 0.7;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: #a5b4fc;
+        margin-top: 2px;
+      }
+
+      /* 状态指示器 - 更大更醒目 */
+      .status-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .status-running {
+        background: #10b981;
+        box-shadow: 0 0 12px rgba(16, 185, 129, 0.8),
+          0 0 24px rgba(16, 185, 129, 0.4);
+        animation: pulse-running 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse-running {
+        0%,
+        100% {
+          box-shadow: 0 0 12px rgba(16, 185, 129, 0.8),
+            0 0 24px rgba(16, 185, 129, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 16px rgba(16, 185, 129, 1),
+            0 0 32px rgba(16, 185, 129, 0.6);
+        }
+      }
+
+      .status-warning {
+        background: #f59e0b;
+        box-shadow: 0 0 12px rgba(245, 158, 11, 0.8),
+          0 0 24px rgba(245, 158, 11, 0.4);
+        animation: pulse-warning 1.5s ease-in-out infinite;
+      }
+
+      @keyframes pulse-warning {
+        0%,
+        100% {
+          box-shadow: 0 0 12px rgba(245, 158, 11, 0.8),
+            0 0 24px rgba(245, 158, 11, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 16px rgba(245, 158, 11, 1),
+            0 0 32px rgba(245, 158, 11, 0.6);
+        }
+      }
+
+      .status-offline {
+        background: #ef4444;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+      }
+
+      /* 監控儀表板面板 - 重新設計 */
+      .dashboard-panel {
+        position: absolute;
+        right: 20px;
+        top: 70px;
+        width: 380px;
+        background: rgba(10, 25, 41, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(0, 229, 255, 0.15);
+        overflow: hidden;
+        z-index: 200;
+        max-height: calc(100vh - 100px);
+        display: flex;
+        flex-direction: column;
+        animation: slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes slideInRight {
+        from {
+          transform: translateX(30px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .dashboard-header {
+        padding: 18px 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.1) 0%,
+          rgba(16, 185, 129, 0.05) 100%
+        );
+        color: white;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      }
+
+      .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #00e5ff;
+      }
+
+      .dashboard-title i {
+        font-size: 18px;
+        filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.5));
+      }
+
+      .dashboard-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+      }
+
+      .dashboard-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .dashboard-content::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 4px;
+      }
+
+      .dashboard-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 229, 255, 0.3);
+        border-radius: 4px;
+      }
+
+      /* 指标卡片 - 渐变设计 */
+      .metric-card {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.1) 0%,
+          rgba(16, 185, 129, 0.05) 100%
+        );
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 14px;
+        border: 1px solid rgba(0, 229, 255, 0.2);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .metric-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #00e5ff 0%, #10b981 100%);
+      }
+
+      .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 229, 255, 0.2);
+        border-color: rgba(0, 229, 255, 0.4);
+      }
+
+      .metric-card.power {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.15) 0%,
+          rgba(0, 184, 217, 0.08) 100%
+        );
+      }
+
+      .metric-card.power::before {
+        background: linear-gradient(180deg, #00e5ff 0%, #00b8d9 100%);
+      }
+
+      .metric-card.wind {
+        background: linear-gradient(
+          135deg,
+          rgba(16, 185, 129, 0.15) 0%,
+          rgba(5, 150, 105, 0.08) 100%
+        );
+      }
+
+      .metric-card.wind::before {
+        background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+      }
+
+      .metric-card.efficiency {
+        background: linear-gradient(
+          135deg,
+          rgba(245, 158, 11, 0.15) 0%,
+          rgba(217, 119, 6, 0.08) 100%
+        );
+      }
+
+      .metric-card.efficiency::before {
+        background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+      }
+
+      .metric-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .metric-label {
+        font-size: 13px;
+        color: #a5b4fc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .metric-label i {
+        color: #00e5ff;
+        font-size: 16px;
+      }
+
+      .metric-value {
+        font-size: 32px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #00e5ff 0%, #10b981 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.2;
+        text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+      }
+
+      .metric-card.power .metric-value {
+        background: linear-gradient(135deg, #00e5ff 0%, #00b8d9 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .metric-card.wind .metric-value {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .metric-card.efficiency .metric-value {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .metric-unit {
+        font-size: 16px;
+        color: #a5b4fc;
+        margin-left: 6px;
+        font-weight: 600;
+      }
+
+      .metric-trend {
+        font-size: 13px;
+        margin-top: 6px;
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .trend-up {
+        color: #10b981;
+      }
+
+      .trend-down {
+        color: #ef4444;
+      }
+
+      /* 圖表容器 */
+      .chart-container {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 14px;
+        border: 1px solid rgba(0, 229, 255, 0.15);
+        transition: all 0.3s ease;
+      }
+
+      /* 圖表 canvas 容器優化 */
+      .chart-container canvas {
+        display: block;
+        max-width: 100%;
+        height: 150px !important;
+      }
+
+      .chart-container:hover {
+        border-color: rgba(0, 229, 255, 0.3);
+        box-shadow: 0 4px 16px rgba(0, 229, 255, 0.1);
+      }
+
+      .chart-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #e0e7ff;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .chart-title i {
+        color: #00e5ff;
+        font-size: 16px;
+      }
+
+      /* 詳情面板 - 重新设计 */
+      .detail-panel {
+        position: absolute;
+        right: 20px;
+        bottom: 20px;
+        width: 340px;
+        max-height: 420px;
+        background: rgba(10, 25, 41, 0.9);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(0, 229, 255, 0.15);
+        overflow: hidden;
+        z-index: 250;
+        animation: slideInUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        display: flex;
+        flex-direction: column;
+      }
+
+      @keyframes slideInUp {
+        from {
+          transform: translateY(30px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .detail-header {
+        padding: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(0, 229, 255, 0.2) 0%,
+          rgba(16, 185, 129, 0.15) 100%
+        );
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      }
+
+      .detail-title {
+        flex: 1;
+      }
+
+      .detail-title h3 {
+        margin: 0 0 6px 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: #e0e7ff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .detail-id {
+        font-size: 12px;
+        opacity: 0.7;
+        color: #a5b4fc;
+      }
+
+      .close-btn {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: white;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+      }
+
+      .close-btn:hover {
+        background: rgba(239, 68, 68, 0.4);
+        border-color: rgba(239, 68, 68, 0.5);
+        transform: scale(1.1) rotate(90deg);
+      }
+
+      .detail-content {
+        padding: 20px;
+        max-height: 250px;
+        overflow-y: auto;
+      }
+
+      .detail-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .detail-content::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 4px;
+      }
+
+      .detail-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 229, 255, 0.3);
+        border-radius: 4px;
+      }
+
+      .detail-section {
+        margin-bottom: 18px;
+      }
+
+      .detail-section:last-child {
+        margin-bottom: 0;
+      }
+
+      .detail-label {
+        font-weight: 700;
+        color: #00e5ff;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .detail-label i {
+        font-size: 14px;
+        filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.5));
+      }
+
+      .detail-value {
+        font-size: 14px;
+        color: #e0e7ff;
+        word-break: break-all;
+        padding: 12px 14px;
+        background: rgba(0, 229, 255, 0.05);
+        border-radius: 8px;
+        border-left: 3px solid #00e5ff;
+        line-height: 1.6;
+      }
+
+      .detail-actions {
+        padding: 16px 20px;
+        border-top: 1px solid rgba(0, 229, 255, 0.15);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .action-btn {
+        padding: 12px 14px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .action-btn-primary {
+        background: linear-gradient(135deg, #00e5ff 0%, #10b981 100%);
+        color: #0a1929;
+        box-shadow: 0 4px 12px rgba(0, 229, 255, 0.3);
+      }
+
+      .action-btn-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 229, 255, 0.5);
+      }
+
+      .action-btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: #e0e7ff;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .action-btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+      }
+
+      /* 空狀態 */
+      .empty-state {
+        padding: 60px 20px;
+        text-align: center;
+        color: #94a3b8;
+      }
+
+      .empty-state i {
+        font-size: 64px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+        color: #00e5ff;
+        filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.3));
+      }
+
+      .empty-state p {
+        margin: 0;
+        font-size: 15px;
+        color: #a5b4fc;
+      }
+
+      .no-models {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #94a3b8;
+        font-size: 15px;
+      }
+
+      /* 状态统计行 */
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 14px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        transition: all 0.3s ease;
+      }
+
+      .status-row:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .status-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .status-row span {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #e0e7ff;
+      }
+
+      .status-row strong {
+        font-weight: 700;
+        font-size: 18px;
+      }
+
+      .status-row.running strong {
+        color: #10b981;
+        text-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+      }
+
+      .status-row.warning strong {
+        color: #f59e0b;
+        text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+      }
+
+      .status-row.offline strong {
+        color: #ef4444;
+        text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+      }
+
+      /* 響應式設計 */
+      @media (max-width: 768px) {
+        .models-panel {
+          width: 260px;
+          left: 10px;
+          top: 70px;
+        }
+
+        .dashboard-panel {
+          width: 320px;
+          right: 10px;
+        }
+
+        .detail-panel {
+          width: calc(100% - 20px);
+          right: 10px;
+          bottom: 10px;
+          max-height: 320px;
+        }
+
+        .detail-content {
+          max-height: 180px;
+        }
+
+        .header {
+          padding: 12px 16px;
+        }
+
+        .header h1 {
+          font-size: 18px;
+        }
+
+        .header-stats {
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- GIS Viewer -->
+      <dgos-viewer ref="viewer" markerscsv="" imagerytype="aerial">
+      </dgos-viewer>
+
+      <!-- 頂部標題欄 -->
+      <div class="header">
+        <h1>
+          <i class="fas fa-wind"></i>
+          風力發電 EMS 監控系統
+        </h1>
+        <div class="header-stats">
+          <div class="stat-item">
+            <i class="fas fa-bolt"></i>
+            <span>總發電: <strong>{{ totalPower.toFixed(1) }} MW</strong></span>
+          </div>
+          <div class="stat-item">
+            <i class="fas fa-check-circle"></i>
+            <span
+              >運行中:
+              <strong>{{ runningTurbines }}/{{ models.length }}</strong></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- 風機列表面板 -->
+      <div class="models-panel" v-if="models.length > 0">
+        <div class="models-panel-header">
+          <i class="fas fa-wind"></i>
+          風機列表 ({{ models.length }})
+        </div>
+        <div class="models-list">
+          <div
+            v-for="model in models"
+            :key="model.id"
+            class="model-item"
+            :class="{ active: selectedModel?.id === model.id }"
+            @click="selectModel(model)"
+          >
+            <i class="fas fa-wind model-item-icon"></i>
+            <div class="model-item-info">
+              <div class="model-item-name">
+                <span :class="'status-indicator status-' + model.status"></span>
+                {{ model.name || model.id }}
+              </div>
+              <div class="model-item-id">
+                功率: {{ model.power?.toFixed(1) || '0.0' }} MW
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 監控儀表板面板 -->
+      <div class="dashboard-panel">
+        <div class="dashboard-header">
+          <div class="dashboard-title">
+            <i class="fas fa-chart-line"></i>
+            即時監控
+          </div>
+          <button class="close-btn" @click="showDashboard = false" v-if="false">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="dashboard-content">
+          <!-- 即時功率指標 -->
+          <div class="metric-card power">
+            <div class="metric-header">
+              <div class="metric-label">
+                <i class="fas fa-bolt"></i>
+                總發電功率
+              </div>
+            </div>
+            <div>
+              <span class="metric-value">{{ totalPower.toFixed(1) }}</span>
+              <span class="metric-unit">MW</span>
+            </div>
+            <div class="metric-trend">
+              <i class="fas fa-info-circle"></i>
+              當前運行中風機: {{ runningTurbines }} 台
+            </div>
+          </div>
+
+          <!-- 平均風速 -->
+          <div class="metric-card wind">
+            <div class="metric-header">
+              <div class="metric-label">
+                <i class="fas fa-wind"></i>
+                平均風速
+              </div>
+            </div>
+            <div>
+              <span class="metric-value">{{ avgWindSpeed.toFixed(1) }}</span>
+              <span class="metric-unit">m/s</span>
+            </div>
+            <div class="metric-trend">
+              <i class="fas fa-check-circle"></i>
+              風況: 良好
+            </div>
+          </div>
+
+          <!-- 發電效率 -->
+          <div class="metric-card efficiency">
+            <div class="metric-header">
+              <div class="metric-label">
+                <i class="fas fa-tachometer-alt"></i>
+                發電效率
+              </div>
+            </div>
+            <div>
+              <span class="metric-value">{{ efficiency.toFixed(1) }}</span>
+              <span class="metric-unit">%</span>
+            </div>
+            <div class="metric-trend">
+              <i class="fas fa-cog"></i>
+              系統狀態: 正常
+            </div>
+          </div>
+
+          <!-- 功率趨勢圖表 -->
+          <div class="chart-container">
+            <div class="chart-title">
+              <i class="fas fa-chart-area"></i>
+              24小時功率趨勢
+            </div>
+            <canvas ref="powerChart" height="150"></canvas>
+          </div>
+
+          <!-- 風機狀態統計 -->
+          <div class="chart-container">
+            <div class="chart-title">
+              <i class="fas fa-info-circle"></i>
+              風機狀態統計
+            </div>
+            <div style="padding: 8px 0">
+              <div class="status-row running">
+                <span>
+                  <span class="status-indicator status-running"></span>
+                  運行中
+                </span>
+                <strong>{{ runningTurbines }}</strong>
+              </div>
+              <div class="status-row warning">
+                <span>
+                  <span class="status-indicator status-warning"></span>
+                  維護中
+                </span>
+                <strong>{{ maintenanceTurbines }}</strong>
+              </div>
+              <div class="status-row offline">
+                <span>
+                  <span class="status-indicator status-offline"></span>
+                  離線
+                </span>
+                <strong>{{ offlineTurbines }}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 詳情面板 -->
+      <div class="detail-panel" v-if="selectedModel">
+        <div class="detail-header">
+          <div class="detail-title">
+            <h3>
+              <span
+                :class="'status-indicator status-' + selectedModel.status"
+              ></span>
+              {{ selectedModel.name || selectedModel.id }}
+            </h3>
+            <div class="detail-id">{{ selectedModel.id }}</div>
+          </div>
+          <button class="close-btn" @click="selectedModel = null">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="detail-content">
+          <!-- 運行狀態 -->
+          <div class="detail-section">
+            <div class="detail-label">
+              <i class="fas fa-info-circle"></i>
+              運行狀態
+            </div>
+            <div class="detail-value">
+              {{ selectedModel.statusText || '運行中' }}
+            </div>
+          </div>
+
+          <!-- 發電數據 -->
+          <div class="detail-section">
+            <div class="detail-label">
+              <i class="fas fa-bolt"></i>
+              發電數據
+            </div>
+            <div class="detail-value">
+              即時功率: {{ selectedModel.power?.toFixed(2) || '0.00' }} MW<br />
+              風速: {{ selectedModel.windSpeed?.toFixed(1) || '0.0' }} m/s<br />
+              轉速: {{ selectedModel.rotationSpeed?.toFixed(0) || '0' }} RPM
+            </div>
+          </div>
+
+          <!-- 位置資訊 -->
+          <div class="detail-section">
+            <div class="detail-label">
+              <i class="fas fa-map-marker-alt"></i>
+              位置座標
+            </div>
+            <div class="detail-value">
+              經度: {{ selectedModel.coordinate?.longitude?.toFixed(6) || 'N/A'
+              }}<br />
+              緯度: {{ selectedModel.coordinate?.latitude?.toFixed(6) || 'N/A'
+              }}<br />
+              高度: {{ selectedModel.coordinate?.height?.toFixed(2) || '0' }} m
+            </div>
+          </div>
+
+          <!-- 今日統計 -->
+          <div class="detail-section">
+            <div class="detail-label">
+              <i class="fas fa-chart-bar"></i>
+              今日統計
+            </div>
+            <div class="detail-value">
+              發電量: {{ selectedModel.dailyEnergy?.toFixed(1) || '0.0' }}
+              MWh<br />
+              運行時數: {{ selectedModel.runningHours?.toFixed(1) || '0.0' }}
+              小時<br />
+              利用率: {{ selectedModel.utilizationRate?.toFixed(1) || '0.0' }}%
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="action-btn action-btn-primary" @click="flyToModel">
+            <i class="fas fa-binoculars"></i>
+            飛到位置
+          </button>
+          <button
+            class="action-btn action-btn-secondary"
+            @click="selectedModel = null"
+          >
+            <i class="fas fa-times"></i>
+            關閉
+          </button>
+        </div>
+      </div>
+
+      <!-- 空狀態提示 -->
+      <div class="no-models" v-if="models.length === 0">
+        <div class="empty-state">
+          <i class="fas fa-hourglass-start"></i>
+          <p>正在載入模型資料...</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { createApp, ref, onMounted, computed, nextTick } = Vue;
+
+      createApp({
+        compilerOptions: {
+          isCustomElement: (tag) => tag === "dgos-viewer",
+        },
+        setup() {
+          const viewer = ref(null);
+          const powerChart = ref(null);
+          const models = ref([]);
+          const selectedModel = ref(null);
+          const showDashboard = ref(true);
+
+          // 監控數據
+          const totalPower = ref(0);
+          const avgWindSpeed = ref(8.5);
+          const efficiency = ref(87.3);
+
+          let chartInstance = null;
+
+          // 生成假的風機狀態
+          const turbineStatuses = [
+            "running",
+            "running",
+            "running",
+            "running",
+            "warning",
+            "offline",
+          ];
+          const statusTexts = {
+            running: "正常運行",
+            warning: "維護中",
+            offline: "離線",
+          };
+
+          // 計算統計數據
+          const runningTurbines = computed(
+            () => models.value.filter((m) => m.status === "running").length
+          );
+          const maintenanceTurbines = computed(
+            () => models.value.filter((m) => m.status === "warning").length
+          );
+          const offlineTurbines = computed(
+            () => models.value.filter((m) => m.status === "offline").length
+          );
+
+          // 解析 CSV 資料並添加假的監控數據
+          const parseModelsFromCSV = (csv) => {
+            const lines = csv.trim().split("\n");
+            if (lines.length < 2) return;
+
+            // 跳過表頭
+            const header = lines[0].split(",").map((h) => h.trim());
+            models.value = lines.slice(1).map((line, index) => {
+              const values = line.split(",").map((v) => v.trim());
+              const modelObj = {};
+              header.forEach((key, idx) => {
+                modelObj[key] = values[idx];
+              });
+
+              // 生成假的監控數據
+              const status = turbineStatuses[index % turbineStatuses.length];
+              const power =
+                status === "running"
+                  ? 2.0 + Math.random() * 1.5
+                  : status === "warning"
+                  ? 0.5 + Math.random() * 0.5
+                  : 0;
+              const windSpeed =
+                status === "offline" ? 0 : 6.0 + Math.random() * 6.0;
+              const rotationSpeed =
+                status === "offline" ? 0 : 10 + Math.random() * 10;
+
+              return {
+                id: modelObj.id || `model-${Math.random()}`,
+                name: modelObj.name || "未命名風機",
+                glbPath: modelObj.glbPath || "",
+                coordinate: {
+                  longitude: parseFloat(modelObj.longitude || 0),
+                  latitude: parseFloat(modelObj.latitude || 0),
+                  height: parseFloat(modelObj.height || 1988.3),
+                },
+                orientation: {
+                  heading: parseFloat(modelObj.heading || 0),
+                  pitch: parseFloat(modelObj.pitch || 45),
+                },
+                scale: parseFloat(modelObj.scale || 100),
+                // 新增監控數據
+                status: status,
+                statusText: statusTexts[status],
+                power: power,
+                windSpeed: windSpeed,
+                rotationSpeed: rotationSpeed,
+                dailyEnergy: power * (18 + Math.random() * 6),
+                runningHours:
+                  status === "running"
+                    ? 20 + Math.random() * 4
+                    : status === "warning"
+                    ? 10 + Math.random() * 5
+                    : 0,
+                utilizationRate:
+                  status === "running"
+                    ? 80 + Math.random() * 15
+                    : status === "warning"
+                    ? 40 + Math.random() * 20
+                    : 0,
+              };
+            });
+
+            // 計算總功率
+            totalPower.value = models.value.reduce(
+              (sum, m) => sum + (m.power || 0),
+              0
+            );
+
+            console.log("解析風機模型:", models.value);
+          };
+
+          // 飛到模型位置
+          const flyToModel = () => {
+            if (!selectedModel.value || !viewer.value) {
+              console.warn("未選擇模型或 viewer 未初始化");
+              return;
+            }
+
+            const modelId = selectedModel.value.id;
+            console.log("飛向模型:", modelId);
+
+            // 直接在 DOM 元素上調用 flyToId 方法
+            if (typeof viewer.value.flyToId === "function") {
+              viewer.value.flyToId(modelId);
+            } else {
+              console.error("flyToId 方法未找到");
+            }
+          };
+
+          // 選擇模型
+          const selectModel = (model) => {
+            selectedModel.value = model;
+          };
+
+          // 初始化功率趨勢圖表 - 優化設計
+          const initPowerChart = () => {
+            nextTick(() => {
+              if (!powerChart.value) return;
+
+              const ctx = powerChart.value.getContext("2d");
+
+              // 生成過去24小時的假數據 - 模擬真實風力發電波動
+              const now = new Date();
+              const labels = [];
+              const data = [];
+              for (let i = 23; i >= 0; i--) {
+                const hour = new Date(now - i * 60 * 60 * 1000);
+                labels.push(hour.getHours() + ":00");
+
+                const baseHour = hour.getHours();
+                let basePower = 0;
+
+                // 模擬真實風力發電特性：波浪形曲線
+                // - 凌晨0-6點：風速通常較穩定，功率中等 (5-7 MW)
+                // - 早上6-12點：風速增強，功率上升 (6-10 MW)
+                // - 下午12-18點：風速最強，功率最高但有波動 (8-11 MW)
+                // - 晚上18-24點：風速減弱，功率下降 (6-8 MW)
+
+                if (baseHour >= 0 && baseHour < 6) {
+                  // 凌晨：平穩的中低功率，使用餘弦波
+                  basePower = 6 + Math.cos((baseHour / 6) * Math.PI) * 1;
+                } else if (baseHour >= 6 && baseHour < 12) {
+                  // 早上：功率逐漸上升
+                  basePower =
+                    6 +
+                    ((baseHour - 6) / 6) * 4 +
+                    Math.sin(((baseHour - 6) / 3) * Math.PI) * 0.5;
+                } else if (baseHour >= 12 && baseHour < 18) {
+                  // 下午：功率最高，使用正弦波模擬波動
+                  basePower =
+                    9 + Math.sin(((baseHour - 12) / 6) * Math.PI * 2) * 1.5;
+                } else {
+                  // 晚上：功率逐漸下降
+                  basePower =
+                    8 -
+                    ((baseHour - 18) / 6) * 2 +
+                    Math.sin(((baseHour - 18) / 3) * Math.PI) * 0.5;
+                }
+
+                // 添加小幅隨機波動模擬風速變化 (±0.3 MW)
+                data.push(Math.max(4, basePower + (Math.random() - 0.5) * 0.6));
+              }
+
+              // 創建漸變背景（一次性創建，避免重複計算）
+              const gradient = ctx.createLinearGradient(0, 0, 0, 150);
+              gradient.addColorStop(0, "rgba(0, 229, 255, 0.3)");
+              gradient.addColorStop(0.5, "rgba(0, 229, 255, 0.1)");
+              gradient.addColorStop(1, "rgba(0, 229, 255, 0)");
+
+              // 銷毀舊圖表
+              if (chartInstance) {
+                chartInstance.destroy();
+              }
+
+              chartInstance = new Chart(ctx, {
+                type: "line",
+                data: {
+                  labels: labels,
+                  datasets: [
+                    {
+                      label: "總功率 (MW)",
+                      data: data,
+                      borderColor: "#00E5FF",
+                      backgroundColor: gradient,
+                      borderWidth: 3,
+                      tension: 0.4,
+                      fill: true,
+                      pointRadius: 0,
+                      pointHoverRadius: 6,
+                      pointHoverBackgroundColor: "#00E5FF",
+                      pointHoverBorderColor: "#fff",
+                      pointHoverBorderWidth: 2,
+                    },
+                  ],
+                },
+                options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  // 禁用動畫以提升效能
+                  animation: false,
+                  // 優化效能設置
+                  parsing: false,
+                  normalized: true,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      mode: "index",
+                      intersect: false,
+                      backgroundColor: "rgba(10, 25, 41, 0.95)",
+                      titleColor: "#00E5FF",
+                      bodyColor: "#E0E7FF",
+                      borderColor: "rgba(0, 229, 255, 0.3)",
+                      borderWidth: 1,
+                      padding: 12,
+                      cornerRadius: 8,
+                      displayColors: false,
+                      callbacks: {
+                        label: function (context) {
+                          return "功率: " + context.parsed.y.toFixed(2) + " MW";
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    x: {
+                      grid: {
+                        display: false,
+                      },
+                      ticks: {
+                        maxTicksLimit: 8,
+                        color: "#94A3B8",
+                        font: {
+                          size: 11,
+                        },
+                      },
+                      border: {
+                        color: "rgba(255, 255, 255, 0.1)",
+                      },
+                    },
+                    y: {
+                      beginAtZero: true,
+                      grid: {
+                        color: "rgba(0, 229, 255, 0.1)",
+                        lineWidth: 1,
+                      },
+                      ticks: {
+                        color: "#94A3B8",
+                        font: {
+                          size: 11,
+                        },
+                        callback: function (value) {
+                          return value.toFixed(1) + " MW";
+                        },
+                      },
+                      border: {
+                        display: false,
+                      },
+                    },
+                  },
+                  interaction: {
+                    mode: "nearest",
+                    axis: "x",
+                    intersect: false,
+                  },
+                },
+              });
+            });
+          };
+
+          onMounted(() => {
+            const viewerElement = viewer.value;
+            if (!viewerElement) return;
+
+            console.log("viewer element:", viewerElement);
+
+            // 監聽 selected 事件 - 用戶從地圖點選模型
+            viewerElement.addEventListener("selected", ({ detail }) => {
+              console.log("選取:", detail);
+              if (detail) {
+                const model = models.value.find((m) => m.id === detail);
+                if (model) {
+                  selectedModel.value = model;
+                }
+              } else {
+                selectedModel.value = null;
+              }
+            });
+
+            // 監聽 camerastatus 事件
+            viewerElement.addEventListener("camerastatus", ({ detail }) => {
+              console.log("鏡頭狀態:", detail);
+            });
+
+            // 監聽 ready 事件 - viewer 初始化完成
+            viewerElement.addEventListener("ready", () => {
+              console.log("載入成功");
+
+              // 設定初始鏡頭位置 [經度, 緯度, 高度, 方向, 俯仰角]
+              viewerElement.setCameraStatus([
+                120.229415, 23.828431, 1988.300579, 0, 45.003179,
+              ]);
+
+              // 載入 CSV 文件並設置到 markerscsv 屬性
+              fetch("./models.csv")
+                .then((response) => response.text())
+                .then((csvData) => {
+                  console.log("CSV 載入成功:", csvData);
+                  // 重要：設置 markerscsv 屬性到 Web Component 讓其載入模型
+                  viewerElement.setAttribute("markerscsv", csvData);
+                  // 解析模型資料用於 Vue 側邊欄列表
+                  parseModelsFromCSV(csvData);
+
+                  // 初始化圖表 (靜態展示)
+                  setTimeout(() => {
+                    initPowerChart();
+                  }, 500);
+                })
+                .catch((error) => {
+                  console.error("CSV 載入失敗:", error);
+                });
+            });
+          });
+
+          return {
+            viewer,
+            powerChart,
+            models,
+            selectedModel,
+            showDashboard,
+            totalPower,
+            avgWindSpeed,
+            efficiency,
+            runningTurbines,
+            maintenanceTurbines,
+            offlineTurbines,
+            flyToModel,
+            selectModel,
+          };
+        },
+      }).mount("#app");
+    </script>
+  </body>
 </html>
